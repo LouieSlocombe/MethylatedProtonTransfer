@@ -211,6 +211,40 @@ function load_reaction_data(file_name)
 end
 
 
+rs_simple = @reaction_network begin
+    k_hel, R1 --> P1 + P2         # Helicase separation
+    (k1_f, k1_r), R1 <--> R2      # Proton transfer reaction
+    k_hel, R2 --> P1_t + P2_t     # Helicase separation
+end
+
+rs_extended = @reaction_network begin
+    k_hel, R1 --> P1 + P2         # Helicase separation
+    (k1_f, k1_r), R1 <--> R2      # 1st Proton transfer reaction
+    k_hel, R2 --> P1_t + P2_t     # Helicase separation
+    (k2_f, k2_r), R2 <--> R3      # 2nd Proton transfer reaction
+    k_hel, R3 --> P1_tt + P2_tt   # Helicase separation
+end
+
+rs_simple_m = @reaction_network begin
+    k_hel, R1 --> P1              # Helicase separation
+    (k1_f, k1_r), R1 <--> R2      # Proton transfer reaction
+    k_hel, R2 --> P2              # Helicase separation
+end
+
+rs_extended_m = @reaction_network begin
+    k_hel, R1 --> P1              # Helicase separation
+    (k1_f, k1_r), R1 <--> R2      # 1st Proton transfer reaction
+    k_hel, R2 --> P2              # Helicase separation
+    (k2_f, k2_r), R2 <--> R3      # 2nd Proton transfer reaction
+    k_hel, R3 --> P3              # Helicase separation
+end
+
+rs_simple_m_t = @reaction_network begin
+    k_hel, R1 --> P1              # Helicase separation
+    (k1_f*exp(-1e2*t), k1_r*exp(-1e2*t)), R1 <--> R2  # change the 1e2    # Proton transfer reaction
+    k_hel, R2 --> P2              # Helicase separation
+end
+
 tol = 1e-18
 algo = Tsit5()
 k_helicase = 1.2 / 1e-12 # 1/ps
@@ -254,40 +288,6 @@ os_display(p)
 println("K_eq = k_f/k_r = $(rnd(k_f/k_r))")
 println("k_helicase = $(rnd(k_helicase))")
 println("labs = $(labs)")
-
-rs_simple = @reaction_network begin
-    k_hel, R1 --> P1 + P2         # Helicase separation
-    (k1_f, k1_r), R1 <--> R2      # Proton transfer reaction
-    k_hel, R2 --> P1_t + P2_t     # Helicase separation
-end
-
-rs_extended = @reaction_network begin
-    k_hel, R1 --> P1 + P2         # Helicase separation
-    (k1_f, k1_r), R1 <--> R2      # 1st Proton transfer reaction
-    k_hel, R2 --> P1_t + P2_t     # Helicase separation
-    (k2_f, k2_r), R2 <--> R3      # 2nd Proton transfer reaction
-    k_hel, R3 --> P1_tt + P2_tt   # Helicase separation
-end
-
-rs_simple_m = @reaction_network begin
-    k_hel, R1 --> P1              # Helicase separation
-    (k1_f, k1_r), R1 <--> R2      # Proton transfer reaction
-    k_hel, R2 --> P2              # Helicase separation
-end
-
-rs_extended_m = @reaction_network begin
-    k_hel, R1 --> P1              # Helicase separation
-    (k1_f, k1_r), R1 <--> R2      # 1st Proton transfer reaction
-    k_hel, R2 --> P2              # Helicase separation
-    (k2_f, k2_r), R2 <--> R3      # 2nd Proton transfer reaction
-    k_hel, R3 --> P3              # Helicase separation
-end
-
-rs_simple_m_t = @reaction_network begin
-    k_hel, R1 --> P1              # Helicase separation
-    (k1_f*exp(-1e2*t), k1_r*exp(-1e2*t)), R1 <--> R2  # change the 1e2    # Proton transfer reaction
-    k_hel, R2 --> P2              # Helicase separation
-end
 
 t0 = 0.0
 t1 = tc / k_helicase # Integration time
