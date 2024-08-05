@@ -5,10 +5,7 @@ using LaTeXStrings
 using Dierckx
 using Latexify
 using CSV
-# using PyPlot
-# const plt = PyPlot
-# rcParams = plt.PyPlot.PyDict(plt.PyPlot.matplotlib."rcParams")
-# rcParams["axes.linewidth"] = 2.0
+using Tables
 
 function cc_directory(path::AbstractString)
     if !isdir(path)
@@ -89,7 +86,6 @@ function reaction_unwrap(sol)
     return arr
 end
 
-
 function calculate_trace(arr)
     return sum(arr, dims=2)
 end
@@ -99,8 +95,6 @@ function fix_trace(arr)
     arr ./= trace
     return arr
 end
-
-
 
 function plot_trace(sol; f_units="SI", f_trace=false)
     time_sim = sol.t ./ au_time
@@ -125,30 +119,7 @@ function plot_trace(sol; f_units="SI", f_trace=false)
     return p
 end
 
-function plot_reaction(sol, labs, idx; f_units="SI", yscale=:log10, f_trace=true, name="plot_reaction.pdf")
-    time_sim = sol.t ./ au_time
-    if f_units == "SI"
-        time_sim, prefix, _ = best_time_units(time_sim)
-        tlab = latexstring("\\mathrm{Time}, t, [$(prefix)s]")
-    else
-        tlab = latexstring("\\mathrm{Time}, t, [AUT]")
-    end
-    ylab = "Population"
-
-    # unwrap to get an array
-    arr = reaction_unwrap(sol)
-    # Fix the trace
-    if f_trace
-        arr = fix_trace(arr)
-    end
-    p = plot(time_sim, arr[:, idx], lw=2, labels=labs[idx'])
-    p = plot!(p, xlabel=tlab, ylabel=ylab, yscale=yscale, legend=:bottomright)
-    os_display(p)
-    savefig(p, joinpath(plot_dump, name))
-    return p
-end
-
-function plot_reactions(sol, labs; idx=nothing, f_units="SI", yscale=:log10, f_trace=true, name="plot_reaction_", leg_loc=:bottomright)
+function plot_reactions(sol, labs; idx=nothing, f_units="SI", yscale=:log10, f_trace=false, name="plot_reaction_", leg_loc=:bottomright)
     time_sim = sol.t ./ au_time
     if f_units == "SI"
         time_sim, prefix, _ = best_time_units(time_sim)
@@ -205,9 +176,38 @@ end
 
 function load_reaction_data(file_name)
     # load the data using CSV.jl
-    file = CSV.File(file_name; delim=',', header=false,skipto=2, missingstring="NA")
-    data = file|>CSV.Tables.matrix
-    return data[:,1], data[:,2], data[:,3], data[:,4], data[:,5], data[:,6]
+    file = CSV.File(file_name; delim=',', header=false, skipto=2, missingstring="NA")
+    data = file |> CSV.Tables.matrix
+    return data[:, 1], data[:, 2], data[:, 3], data[:, 4], data[:, 5], data[:, 6]
+end
+
+
+# a function that saves the solution to a file
+function save_solution(sol, labs, file_name)
+    u = sol.u
+    n = length(labs)
+
+    # Convert time to SI
+    time_sim = sol.t ./ au_time
+    nt = length(time_sim)
+    time_sim, prefix, _ = best_time_units(time_sim)
+    tlab = latexstring("$(prefix)s")
+
+    # Convert headers to strings
+    labs = [string(labs[i]) for i = 1:n]
+    # unwrap to get an array
+    arr = zeros(nt, n)
+    for i = 1:nt
+        for j = 1:n
+            arr[i, j] = u[i][j]
+        end
+    end
+
+    # save the data
+    CSV.write(file_name, Tables.table(arr); header=labs)
+    # Save the time
+    CSV.write("time_" * file_name, Tables.table(time_sim); header=[string(tlab)])
+    return
 end
 
 
@@ -239,51 +239,42 @@ rs_extended_m = @reaction_network begin
     k_hel, R3 --> P3              # Helicase separation
 end
 
-rs_simple_m_t = @reaction_network begin
-    k_hel, R1 --> P1              # Helicase separation
-    (k1_f*exp(-1e2*t), k1_r*exp(-1e2*t)), R1 <--> R2  # change the 1e2    # Proton transfer reaction
-    k_hel, R2 --> P2              # Helicase separation
-end
-
 tol = 1e-18
 algo = Tsit5()
 k_helicase = 1.2 / 1e-12 # 1/ps
 au_time = 2.4188843265857e-17
 f_choice = "mGC"
-guess_decay = 1e2
 
 if f_choice == "GC"
     dist, time_vals, rate_f, rate_r, rate_f_neo, rate_r_neo = load_reaction_data("data/gc_rates.csv")
-    guess = @. rate_f[1] * exp(-guess_decay * time_vals)
     k_f = rate_f_neo[1]
     k_r = rate_r_neo[1]
-    labs = LaTeXString[L"$G\mathrm{-}C$" L"$G$" L"$C$" L"$G^\mathrm{*}\mathrm{-}C^\mathrm{*}$" L"$G^\mathrm{*}$" L"$C^\mathrm{*}$"]
-    network = rs_simple
+    labs = LaTeXString[L"$G\mathrm{-}C$" L"$G\mathrm{+}C$" L"$G^\mathrm{*}\mathrm{-}C^\mathrm{*}$" L"$G^\mathrm{*}\mathrm{+}C^\mathrm{*}$"]
+    network = rs_simple_m
     tc = 6.0
-    params = (:k1_f => k_f, :k1_r => k_r, :k_hel => k_helicase)
-    u0 = [:R1 => 1.0, :R2 => 0.0, :P1 => 0.0, :P2 => 0.0, :P1_t => 0.0, :P2_t => 0.0]
+    p = (:k1_f => k_f, :k1_r => k_r, :k_hel => k_helicase)
+    u0 = [:R1 => 1.0, :R2 => 0.0, :P1 => 0.0, :P2 => 0.0]
 
 elseif f_choice == "mGC"
     dist, time_vals, rate_f, rate_r, rate_f_neo, rate_r_neo = load_reaction_data("data/m_gc_rates.csv")
-    guess = @. rate_f[1] * exp(-guess_decay * time_vals)
     k_f = rate_f_neo[1]
     k_r = rate_r_neo[1]
     labs = LaTeXString[L"$mG\mathrm{-}C$" L"$mG\mathrm{+}C$" L"$mG^\mathrm{*}\mathrm{-}C^\mathrm{*}$" L"$mG^\mathrm{*}\mathrm{+}C^\mathrm{*}$"]
-    network = rs_simple_m_t
+    network = rs_simple_m
     tc = 6.0
     params = (:k1_f => k_f, :k1_r => k_r, :k_hel => k_helicase)
     u0 = [:R1 => 1.0, :R2 => 0.0, :P1 => 0.0, :P2 => 0.0]
 end
 
-# plot the data vs time
-p = plot(time_vals, rate_f, lw=2, label="k_f")
-p = plot!(p, time_vals, rate_r, lw=2, label="k_r")
-p = plot!(p, time_vals, rate_f_neo, lw=2, label="k_f_neo")
-p = plot!(p, time_vals, rate_r_neo, lw=2, label="k_r_neo")
-p = plot!(p, time_vals, guess, lw=2, label="Guess")
-# Make the scale log
-p = plot!(p, yscale=:log10, xlabel="Time [ps]", ylabel="Rate [1/s]", legend=:bottomright)
-os_display(p)
+# # plot the data vs time
+# p = plot(time_vals, rate_f, lw=2, label="k_f")
+# p = plot!(p, time_vals, rate_r, lw=2, label="k_r")
+# p = plot!(p, time_vals, rate_f_neo, lw=2, label="k_f_neo")
+# p = plot!(p, time_vals, rate_r_neo, lw=2, label="k_r_neo")
+# p = plot!(p, time_vals, guess, lw=2, label="Guess")
+# # Make the scale log
+# p = plot!(p, yscale=:log10, xlabel="Time [ps]", ylabel="Rate [1/s]", legend=:bottomright)
+# os_display(p)
 
 println("K_eq = k_f/k_r = $(rnd(k_f/k_r))")
 println("k_helicase = $(rnd(k_helicase))")
@@ -300,8 +291,7 @@ calculate_properties(sol)
 tlab = latexstring("\\mathrm{Time}, t, [s]")
 ylab = "Population"
 
-# plot_trace(sol)
-
+plot_trace(sol)
 
 if f_choice in ["GC"]
     plot_reactions(sol, labs; name="plot_reaction_all_log", leg_loc=:right)
@@ -315,3 +305,4 @@ if f_choice in ["mGC"]
     plot_reactions(sol, labs; idx=[3, 4], yscale=:identity, leg_loc=:right)
 end
 
+save_solution(sol, labs, "reaction_data.csv")
