@@ -243,7 +243,7 @@ tol = 1e-18
 algo = Tsit5()
 k_helicase = 1.2 / 1e-12 # 1/ps
 au_time = 2.4188843265857e-17
-f_choice = "mGC"
+f_choice = "GC"
 
 if f_choice == "GC"
     dist, time_vals, rate_f, rate_r, rate_f_neo, rate_r_neo = load_reaction_data("data/gc_rates.csv")
@@ -252,7 +252,7 @@ if f_choice == "GC"
     labs = LaTeXString[L"$G\mathrm{-}C$" L"$G\mathrm{+}C$" L"$G^\mathrm{*}\mathrm{-}C^\mathrm{*}$" L"$G^\mathrm{*}\mathrm{+}C^\mathrm{*}$"]
     network = rs_simple_m
     tc = 6.0
-    p = (:k1_f => k_f, :k1_r => k_r, :k_hel => k_helicase)
+    params = (:k1_f => k_f, :k1_r => k_r, :k_hel => k_helicase)
     u0 = [:R1 => 1.0, :R2 => 0.0, :P1 => 0.0, :P2 => 0.0]
 
 elseif f_choice == "mGC"
@@ -296,13 +296,15 @@ plot_trace(sol)
 if f_choice in ["GC"]
     plot_reactions(sol, labs; name="plot_reaction_all_log", leg_loc=:right)
     plot_reactions(sol, labs; name="plot_reaction_all", yscale=:identity, leg_loc=:right)
-    plot_reactions(sol, labs; idx=[4, 5, 6], yscale=:identity, leg_loc=:right)
+    plot_reactions(sol, labs; idx=[3, 4], yscale=:identity, leg_loc=:right)
+    save_solution(sol, labs, "reaction_data_gc.csv")
 end
 
 if f_choice in ["mGC"]
     plot_reactions(sol, labs; name="plot_reaction_all_log", leg_loc=:right)
     plot_reactions(sol, labs; name="plot_reaction_all", yscale=:identity, leg_loc=:right)
     plot_reactions(sol, labs; idx=[3, 4], yscale=:identity, leg_loc=:right)
+    save_solution(sol, labs, "reaction_data_mgc.csv")
 end
 
-save_solution(sol, labs, "reaction_data.csv")
+
