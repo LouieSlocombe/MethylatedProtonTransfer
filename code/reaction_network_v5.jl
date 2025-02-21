@@ -326,5 +326,3 @@ if f_choice in ["GC_ext"]
     plot_reactions(sol, labs; idx=[5, 6], yscale=:identity, leg_loc=:right)
     save_solution(sol, labs, "reaction_data_gc_ext.csv")
 end
-
-#results saved in C:\Users\jd01548
